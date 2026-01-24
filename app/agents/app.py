@@ -61,17 +61,19 @@ app = graph.compile()
 
 
 # Run with Streaming
-user_query = input("You: ")
 
-initial_state = {
-    "messages": [HumanMessage(content=user_query)],
-    "model_name": "",
-}
 
-for message, metadata in app.stream(
-    initial_state,
-    stream_mode="messages",
-    config={"configurable": {"thread_id": "thread_1"}},
-):
-    if message.content:
-        print(message.content, end="", flush=True)
+def Agent_chat_start(user_query):
+    initial_state = {
+        "messages": [HumanMessage(content=user_query)],
+        "model_name": "",
+    }
+
+    for message, metadata in app.stream(
+        initial_state,
+        stream_mode="messages",
+        config={"configurable": {"thread_id": "thread_1"}},
+    ):
+        if message.content:
+            yield message.content
+
