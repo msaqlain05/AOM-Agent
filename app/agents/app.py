@@ -4,11 +4,17 @@ from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, AIMessageChunk, BaseMessage
 from dotenv import load_dotenv
 import os
+import sqlite3
+from langgraph.checkpoint.sqlite import SqliteSaver
 
 # Load API key
 load_dotenv()
 api_key = os.getenv("OPENAI_API_KEY")
 
+# Simple SQLite checkpointer (no encryption)
+checkpointer = SqliteSaver(
+    sqlite3.connect("checkpoint.db", check_same_thread=False)
+)
 
 # State
 class AgentState(TypedDict):
@@ -16,9 +22,7 @@ class AgentState(TypedDict):
     model_name: str
 
 
-
 # Models (STREAMING ENABLED)
-
 basic_model = ChatOpenAI(
     model="gpt-4o-mini",
     temperature=0.1,
@@ -34,12 +38,9 @@ advanced_model = ChatOpenAI(
 )
 
 
-
 # Node
-
 def agent_node(state: AgentState):
     user_message = state["messages"][-1].content
-
     model = advanced_model if len(user_message) > 100 else basic_model
 
     # STREAM TOKENS
@@ -50,20 +51,16 @@ def agent_node(state: AgentState):
         }
 
 
-
 # Graph
-
 graph = StateGraph(AgentState)
 graph.add_node("agent", agent_node)
 graph.add_edge(START, "agent")
 graph.add_edge("agent", END)
-app = graph.compile()
+
+app = graph.compile(checkpointer=checkpointer)
 
 
-# Run with Streaming
-
-
-def Agent_chat_start(user_query):
+def Agent_chat_start(user_query, thread_id="thread_1"):
     initial_state = {
         "messages": [HumanMessage(content=user_query)],
         "model_name": "",
@@ -72,8 +69,18 @@ def Agent_chat_start(user_query):
     for message, metadata in app.stream(
         initial_state,
         stream_mode="messages",
-        config={"configurable": {"thread_id": "thread_1"}},
+        config={"configurable": {"thread_id": thread_id}},
     ):
         if message.content:
             yield message.content
 
+    # Get checkpoint state
+    state = app.get_state(
+        config={"configurable": {"thread_id": thread_id}}
+    )
+
+    print("\n--- CHECKPOINT STATE ---")
+    print(f"Thread ID: {thread_id}")
+    print(f"Messages: {len(state.values.get('messages', []))}")
+    print(f"Model: {state.values.get('model_name', 'N/A')}")
+    print(f"Next: {state.next}")

@@ -31,8 +31,8 @@ async def chat_controller(
             user_message=request.message,
             bot_message=bot_reply
         )
-        session.add(chat)
-        await session.commit()
+        # session.add(chat)
+        # await session.commit()
     except Exception as e:
         await session.rollback()
         print(f"Database error: {e}")
